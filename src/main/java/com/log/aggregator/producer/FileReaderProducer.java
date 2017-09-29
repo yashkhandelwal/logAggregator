@@ -22,7 +22,7 @@ public class FileReaderProducer extends AbstractProducingThread {
 
     @Override
     protected void doRun() {
-        QDestination qDestination = QDestination.getDestinationOrNull(getLogProducer().getName());
+        QDestination qDestination = QDestination.getDestinationOrNull(logProducer.getName());
         String filePath = null;
         if (qDestination != null && qDestination.getKeyAddress() != null) {
             filePath = qDestination.getKeyAddress();
@@ -40,7 +40,7 @@ public class FileReaderProducer extends AbstractProducingThread {
                         } else if (dataToSend.size() >= LogProperty.getLogProperties().getInt("produce.batch.size", 5)) {
                             String data = gson.toJson(dataToSend);
                             System.out.println("FileReaderProducer: Sending Message To Producer");
-                            getLogProducer().process(data);
+                            logProducer.process(data);
                             dataToSend = new ArrayList<>();
                         } else {
                             dataToSend.add(line);
@@ -51,7 +51,7 @@ public class FileReaderProducer extends AbstractProducingThread {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-            } while (getProducerState() == LogThreadState.RUNNING.getValue());
+            } while (logProducer.getState() == LogThreadState.RUNNING.getValue());
         }
     }
 }

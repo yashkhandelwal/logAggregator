@@ -15,12 +15,4 @@ public abstract class AbstractProducingThread extends Thread {
     }
 
     protected abstract void doRun();
-
-    public int getProducerState() {
-        return logProducer.getState();
-    }
-
-    public LogProducer getLogProducer() {
-        return logProducer;
-    }
 }

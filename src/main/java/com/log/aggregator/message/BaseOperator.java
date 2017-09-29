@@ -18,16 +18,15 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public abstract class BaseOperator {
 
-    protected static volatile ExecutorService executorService;
-    protected volatile Thread thread = null;
     private final long maxBytesAllowed;
     private final AtomicLong currentBytesCount = new AtomicLong();
     private final String name;
+    private volatile List<String> collectedDataList = new ArrayList<>();
+    private static volatile ExecutorService executorService;
+    private static final Charset CHARSET_UTF_8 = Charset.forName("UTF-8");
+    protected volatile Thread thread = null;
     protected volatile int state = LogThreadState.STOPPED.getValue();
-    private volatile List<String> grabbedDataList = new ArrayList<>();
-    public static final Charset CHARSET_UTF_8 = Charset.forName("UTF-8");
-    public static final Type STRING_LIST_TYPE = new TypeToken<List<String>>() {
-    }.getType();
+    public static final Type STRING_LIST_TYPE = new TypeToken<List<String>>() {}.getType();
 
     protected BaseOperator(String name) {
         if (name.isEmpty()) {
@@ -49,7 +48,7 @@ public abstract class BaseOperator {
     }
 
     private void flushNow(boolean async) {
-        List<String> dataToSave = swapBuffer();
+        List<String> dataToSave = swapData();
         if (dataToSave.isEmpty()) {
             return;
         }
@@ -66,31 +65,12 @@ public abstract class BaseOperator {
         }
     }
 
-    private synchronized List<String> swapBuffer() {
-        List<String> swappedList = grabbedDataList;
-        grabbedDataList = new ArrayList<>();
+    private synchronized List<String> swapData() {
+        List<String> swappedList = collectedDataList;
+        collectedDataList = new ArrayList<>();
         currentBytesCount.set(0);
         return swappedList;
     }
-
-    protected abstract void doFlush(List<String> dataToSave);
-
-    protected ExecutorService getExecutorService() {
-        if (executorService == null) {
-            synchronized (this) {
-                if (executorService == null) {
-                    executorService = Executors.newFixedThreadPool(5);
-                }
-            }
-        }
-        return executorService;
-    }
-
-    private boolean isFlushNeeded() {
-        return currentBytesCount.intValue() >= maxBytesAllowed;
-    }
-
-    protected abstract void startThreadIfNot();
 
     public void process(String data) {
         if (data == null || data.isEmpty()) {
@@ -99,15 +79,11 @@ public abstract class BaseOperator {
         final int dataBytesCount = data.getBytes(CHARSET_UTF_8).length;
         synchronized (this) {
             if (currentBytesCount.get() + dataBytesCount >= maxBytesAllowed) {
-                flushNow(false);// change it to true for async
+                flushNow(true);
             }
-            grabbedDataList.add(data);
+            collectedDataList.add(data);
             currentBytesCount.addAndGet(dataBytesCount);
         }
-    }
-
-    public int getState() {
-        return state;
     }
 
     public void stop() {
@@ -122,8 +98,31 @@ public abstract class BaseOperator {
         flushNow(false);
     }
 
+    protected ExecutorService getExecutorService() {
+        if (executorService == null) {
+            synchronized (this) {
+                if (executorService == null) {
+                    executorService = Executors.newFixedThreadPool(5);
+                }
+            }
+        }
+        return executorService;
+    }
+
+    protected boolean isFlushNeeded() {
+        return currentBytesCount.intValue() >= maxBytesAllowed;
+    }
+
+    public int getState() {
+        return state;
+    }
+
     public String getName() {
         return name;
     }
+
+    protected abstract void doFlush(List<String> dataToSave);
+
+    protected abstract void startThreadIfNot();
 }
 
